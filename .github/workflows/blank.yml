@@ -1,0 +1,55 @@
+name: CMake
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the "main" branch
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  # workflow_dispatch:
+  
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+
+jobs:
+  build-cpp-windows:
+    name: C++/Win32 (on windows22 image)
+
+    runs-on: windows-2022
+
+    env:
+      wxMSW_VER: 3.2.0
+      WXWIN: c:\wx
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install wxWidgets
+        run: |
+          mkdir ${env:WXWIN} | Out-Null
+          cd ${env:WXWIN}
+          curl -OL https://github.com/wxWidgets/wxWidgets/releases/download/v${env:wxMSW_VER}/wxWidgets-${env:wxMSW_VER}.7z
+          7z x wxWidgets-${env:wxMSW_VER}.7z
+          cmake . -G "MinGW Makefiles" -B ./static -DCMAKE_BUILD_TYPE=RELEASE -DwxBUILD_SHARED=OFF -DwxBUILD_PRECOMP:BOOL=OFF 
+          cd static
+          make -j8
+          make install
+      - name: Build project
+        run: |
+          cd ${{github.workspace}}
+          cmake . -G "MinGW Makefiles" -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=RELEASE
+          cd ${{github.workspace}}/build
+          make -j8
+      - name: Test
+        working-directory: ${{github.workspace}}/build
+        run: ctest -C ${{env.BUILD_TYPE}}
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: Build output
+          path: |
+            ${{github.workspace}}/build/template.exe
+
